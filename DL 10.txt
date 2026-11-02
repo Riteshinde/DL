@@ -1,0 +1,43 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+
+# Load dataset
+df = pd.read_csv("creditcard.csv")
+
+# Separate normal and fraud transactions
+normal = df[df["Class"] == 0].drop("Class", axis=1)
+X_test = df.drop("Class", axis=1)
+y_test = df["Class"]
+
+# Scale data
+scaler = StandardScaler()
+normal = scaler.fit_transform(normal)
+X_test = scaler.transform(X_test)
+
+# Build Autoencoder
+model = Sequential([
+    Dense(16, activation="relu", input_shape=(X_test.shape[1],)),
+    Dense(8, activation="relu"),
+    Dense(16, activation="relu"),
+    Dense(X_test.shape[1], activation="linear")
+])
+
+# Compile and train on normal transactions only
+model.compile(optimizer="adam", loss="mse")
+model.fit(normal, normal, epochs=5, batch_size=256, verbose=1)
+
+# Calculate reconstruction error
+pred = model.predict(X_test, verbose=0)
+error = np.mean(np.square(X_test - pred), axis=1)
+
+# Detect anomalies
+threshold = np.percentile(error, 95)
+y_pred = (error > threshold).astype(int)
+
+# Display results
+print("Anomalies detected:", np.sum(y_pred == 1))
+print("Actual fraud transactions:", np.sum(y_test == 1))
